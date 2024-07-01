@@ -1,7 +1,6 @@
 <!--타이틀 부분-->
 <div align="center">
   <img src="https://capsule-render.vercel.app/api?type=Venom&color=gradient&customColorList=0,2,2,5,30&height=300&section=header&text=Welcome%20To%20SM's%20GitHub&desc=Nice%20To%20Meet%20You!&fontSize=70" />
-  
 </div>
 
 <!--내용 부분-->
