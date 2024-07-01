@@ -31,13 +31,16 @@
 <br>
 
 <h3 align="center">📚 Studying 📚</h3>
-<div align="center">Web
+<div align="center">
+  <p>🌐 Web</p>
   <img src="https://img.shields.io/badge/typescript-007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white" />&nbsp
   <img src="https://img.shields.io/badge/react-20232a.svg?style=for-the-badge&logo=react&logoColor=61DAFB" />&nbsp
   <img src="https://img.shields.io/badge/Next.js-000?logo=nextdotjs&logoColor=fff&style=for-the-badge" />&nbsp
   
 </div>
-<div align="center">App
+<div align="center">
+  <br>
+  <p>📱 App</p>
 <img src="https://img.shields.io/badge/Dart-0175C2?logo=dart&logoColor=fff&style=for-the-badge" />&nbsp
 <img src="https://img.shields.io/badge/Flutter-02569B?logo=flutter&logoColor=fff&style=for-the-badge" />&nbsp
 </div>
