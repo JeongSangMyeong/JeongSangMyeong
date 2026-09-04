@@ -102,18 +102,29 @@
       <div>
         <label class="f" for="model">정확도</label>
         <select id="model">
-          <option value="onnx-community/whisper-base">보통 — 빠름 (약 80MB)</option>
-          <option value="onnx-community/whisper-small" selected>좋음 — 권장 (약 250MB)</option>
-          <option value="onnx-community/whisper-tiny">낮음 — 가장 빠름 (약 40MB)</option>
+          <option value="onnx-community/whisper-large-v3-turbo">가장 정확 — 한국어 권장</option>
+          <option value="onnx-community/whisper-small" selected>보통 — 균형 (권장)</option>
+          <option value="onnx-community/whisper-base">낮음 — 빠름</option>
+          <option value="onnx-community/whisper-tiny">아주 낮음 — 가장 빠름</option>
         </select>
+        <div class="status" style="margin-top:6px">
+          한국어는 <b>가장 정확</b>을 권합니다. 처음 한 번만 받고 이후엔 저장됩니다.
+        </div>
       </div>
     </div>
-    <button id="go" class="primary" style="margin-top:16px" disabled>받아쓰기 시작</button>
+    <label class="chip-row" style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:15px;cursor:pointer">
+      <input type="checkbox" id="diarize" checked style="width:20px;height:20px" />
+      화자 구분하기 (누가 말했는지 나눠서 표시)
+    </label>
+    <button id="go" class="primary" style="margin-top:14px" disabled>받아쓰기 시작</button>
   </div>
 
   <div id="prog" class="panel hidden">
     <div class="bar"><i id="fill"></i></div>
     <div class="status" id="statusText">준비 중…</div>
+    <button id="stop" style="margin-top:12px;border-color:var(--err);color:var(--err)">
+      ■ 중지
+    </button>
   </div>
 
   <div id="err" class="note err hidden"></div>
@@ -128,17 +139,32 @@
   </div>
 
   <p class="foot">
+    <span id="devinfo"></span><br />
     변환은 이 기기 안에서만 이루어집니다.<br />
     녹음 파일이 서버로 전송되지 않습니다.
   </p>
 </div>
 
+<script src="coi-serviceworker.js"></script>
 <script type="module">
 "use strict";
 const $ = (id) => document.getElementById(id);
 const SAMPLE_RATE = 16000;
 let picked = null, recorder = null, chunks = [], timer = null, recStart = 0, worker = null;
 let lastResult = null;
+const downloaded = new Map();
+const downloadBytes = new Map();
+let stallTimer = null;
+let currentPhase = "";
+let profileKey = "wasm";
+let modelSizes = null;
+let planTotal = 0;
+let onMainThread = false;
+let cancelled = false;
+let workerFailed = false;      // 작업자가 한 번 실패하면 이후에는 바로 우회한다
+let mainThreadBusy = false;
+// 파일을 고칠 때마다 올린다. 브라우저가 예전 파일을 쓰지 않게 하는 용도.
+const APP_VERSION = "13";
 
 /* ---------- 보안 연결 확인 (마이크는 https 에서만 된다) ---------- */
 if (!window.isSecureContext) {
@@ -239,10 +265,70 @@ async function toMono16k(file) {
 }
 
 /* ---------- 실행 ---------- */
+/** 이 기기가 빠른 모드(WebGPU)를 쓸 수 있는지 미리 확인해 안내한다. */
+let hasWebGPU = null;
+async function checkDevice() {
+  try {
+    hasWebGPU = "gpu" in navigator && !!(await navigator.gpu.requestAdapter());
+  } catch {
+    hasWebGPU = false;
+  }
+  // 지금 이 기기가 어떤 조건인지 그대로 보여 준다. 느릴 때 원인을 알 수 있다.
+  const cores = navigator.hardwareConcurrency || 0;
+  const threads = window.crossOriginIsolated ? Math.max(1, Math.min(4, cores)) : 1;
+  // 내려받는 용량은 기기(그래픽 가속 여부)에 따라 다르다. 실제 값을 읽어 온다.
+  try {
+    const eng = await import(`./engine.js?v=${APP_VERSION}`);
+    profileKey = await eng.pickProfileKey(hasWebGPU ? "webgpu" : "wasm");
+    modelSizes = eng.MODEL_PROFILES;
+  } catch {
+    /* 못 읽어도 안내 문구만 덜 자세해질 뿐이다 */
+  }
+  $("devinfo").textContent =
+    `이 기기: ${hasWebGPU ? "빠른 모드(WebGPU) 사용 가능" : "일반 모드"}` +
+    ` · CPU ${cores || "?"}개 중 ${threads}개 사용` +
+    (window.crossOriginIsolated ? "" : " (여러 개를 쓰려면 새로고침이 한 번 필요합니다)");
+  updateModelHint();
+}
+
+/** 이 기기에서 이 모델을 고르면 실제로 몇 MB 를 받는지. 모르면 null. */
+function sizeForSelected() {
+  return modelSizes?.[$("model").value]?.[profileKey]?.sizeMB ?? null;
+}
+
+function updateModelHint() {
+  const big = $("model").value.includes("large");
+  const mb = sizeForSelected();
+  const sizeNote = mb === null ? "" : ` (약 ${mb}MB)`;
+  const box = $("firstRun");
+  box.classList.remove("hidden");
+
+  if (big && hasWebGPU === false) {
+    box.className = "note warn";
+    box.innerHTML =
+      "이 기기는 <b>빠른 모드(WebGPU)를 지원하지 않습니다.</b> " +
+      "가장 정확한 모델은 매우 느리고 휴대폰이 뜨거워질 수 있습니다.<br />" +
+      "<b>보통</b> 을 권합니다. 그래도 쓰시려면 짧은 녹음으로 먼저 시험해 보세요.";
+    return;
+  }
+  box.className = "note info";
+  box.innerHTML = big
+    ? `가장 정확한 모델을 내려받습니다<b>${sizeNote}</b>. ` +
+      "<b>와이파이</b>에서, 받는 동안 <b>이 화면을 그대로 두세요.</b> " +
+      "다른 앱으로 나가면 중단됩니다." +
+      (hasWebGPU ? " (이 기기는 빠른 모드를 지원합니다 ✓)" : "")
+    : `처음 한 번만 음성인식 모델을 내려받습니다${sizeNote}. 그 뒤로는 저장되어 빠르게 열립니다.` +
+      (hasWebGPU ? " 이 기기는 빠른 모드를 지원합니다 ✓" : "");
+}
+
+$("model").addEventListener("change", updateModelHint);
+checkDevice();
+
 $("go").addEventListener("click", async () => {
   if (!picked) return;
   $("go").disabled = true;
   $("err").classList.add("hidden");
+  $("err").className = "note err";
   $("result").classList.add("hidden");
   $("prog").classList.remove("hidden");
   $("fill").style.width = "2%";
@@ -255,59 +341,302 @@ $("go").addEventListener("click", async () => {
 
   if (audio.length < SAMPLE_RATE * 0.2) return showError("소리가 너무 짧습니다.");
 
-  if (!worker) {
-    worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
-    worker.addEventListener("message", onWorker);
-    worker.addEventListener("error", (e) => showError("작업자 오류: " + e.message));
+  // 긴 녹음을 큰 모델로 돌리면 휴대폰이 오래 뜨거워진다. 미리 알리고 확인받는다.
+  const minutes = audio.length / SAMPLE_RATE / 60;
+  if (minutes > 3 && $("model").value.includes("large")) {
+    const ok = confirm(
+      `녹음이 ${minutes.toFixed(0)}분입니다.\n\n` +
+        "가장 정확한 모델로 돌리면 휴대폰이 오래 뜨거워지고 느려질 수 있습니다.\n\n" +
+        "확인을 누르면 그대로 진행하고,\n" +
+        "취소를 누르면 멈춥니다. ('정확도' 를 낮추면 훨씬 가볍습니다)",
+    );
+    if (!ok) {
+      $("prog").classList.add("hidden");
+      $("go").disabled = false;
+      return;
+    }
   }
-  $("statusText").textContent = "모델 준비 중…";
-  worker.postMessage({
-    audio, model: $("model").value, language: $("lang").value, sampleRate: SAMPLE_RATE,
-  });
+
+  const request = {
+    audio,
+    model: $("model").value,
+    language: $("lang").value,
+    sampleRate: SAMPLE_RATE,
+    diarize: $("diarize").checked,
+  };
+
+  leftDuringWork = false;
+  cancelled = false;
+  currentPhase = "";
+  downloadBytes.clear();
+  keepAwake();
+  const big = $("model").value.includes("large");
+  $("statusText").textContent = big
+    ? "모델 준비 중… 처음이면 시간이 걸립니다. 이 화면을 그대로 두세요."
+    : "모델 준비 중… (처음이면 시간이 걸립니다)";
+  armStallNotice();
+
+  // 1순위: 작업자에서 돌린다(화면이 멈추지 않는다).
+  // 작업자가 뜨지 않는 브라우저라면 화면에서 직접 돌린다. 느리지만 동작은 한다.
+  if (!workerFailed) {
+    if (startWithWorker(request)) return;
+    workerFailed = true;
+  }
+  runOnMainThread(request);
 });
 
-const downloaded = new Map();
+let wakeLock = null;
+let leftDuringWork = false;
+// 작업 중에는 서비스 워커가 페이지를 새로고침하지 못하게 막는 표시
+window.__transcribing = false;
+
+/** 처리하는 동안 화면이 꺼지지 않게 한다. 화면이 꺼지면 다운로드가 끊긴다. */
+async function keepAwake() {
+  window.__transcribing = true;   // 이 동안에는 페이지를 새로고침하지 않는다
+  try {
+    if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
+  } catch {
+    // 지원하지 않는 브라우저도 있다. 없어도 동작에는 지장 없다.
+  }
+}
+
+function releaseAwake() {
+  window.__transcribing = false;
+  try { wakeLock?.release(); } catch {}
+  wakeLock = null;
+}
+
+// 처리 중에 다른 앱으로 나갔는지 기억해 둔다(오류 원인 안내에 쓴다).
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && !$("prog").classList.contains("hidden")) leftDuringWork = true;
+  // 돌아왔을 때 화면 꺼짐 방지를 다시 건다.
+  if (!document.hidden && !$("prog").classList.contains("hidden")) keepAwake();
+});
+
+/** 기계가 뱉는 영어 오류를 사람이 알아들을 말로 바꾼다. */
+function friendlyError(message) {
+  const raw = String(message || "");
+  const lower = raw.toLowerCase();
+  if (lower.includes("network") || lower.includes("failed to fetch") || lower.includes("load")) {
+    return (
+      "다운로드가 중간에 끊겼습니다.\n\n" +
+      (leftDuringWork
+        ? "받는 도중에 다른 화면으로 나가셨습니다. 휴대폰은 화면을 벗어나면 다운로드를 멈춥니다.\n"
+        : "") +
+      "이렇게 해보세요:\n" +
+      "  1. 와이파이에 연결하기\n" +
+      "  2. 다시 누르고 이 화면을 그대로 두기 (끝날 때까지)\n" +
+      "  3. 계속 안 되면 '정확도' 를 낮춰서 더 작은 것부터 받기\n\n" +
+      `(원인: ${raw})`
+    );
+  }
+  if (lower.includes("out of memory") || lower.includes("allocation")) {
+    return (
+      "휴대폰 메모리가 부족합니다.\n" +
+      "'정확도' 를 한 단계 낮춰서 다시 시도해 주세요.\n\n" +
+      `(원인: ${raw})`
+    );
+  }
+  return raw;
+}
+
+/**
+ * 오래 조용할 때 "멈춘 게 아니다" 라고 알려 준다.
+ *
+ * 예전에는 20초가 지나면 무조건 "모델을 내려받는 중" 이라고 띄웠는데,
+ * 이미 다 받고 받아쓰는 중일 때도 그렇게 나와 사실과 달랐다.
+ * 지금 단계에 맞는 문구만 쓴다.
+ */
+function armStallNotice() {
+  clearTimeout(stallTimer);
+  stallTimer = setTimeout(() => {
+    if ($("prog").classList.contains("hidden")) return;
+    const hint = {
+      loading: "모델을 준비하는 중입니다. 이 화면을 그대로 두세요…",
+      transcribing: planTotal
+        ? "받아쓰는 중입니다. 구간이 많아 시간이 걸립니다…"
+        : "받아쓰는 중입니다. 녹음이 길면 시간이 걸립니다…",
+      diarizing: "화자를 구분하는 중입니다…",
+    }[currentPhase];
+    if (hint) $("statusText").textContent = hint;
+  }, 25000);
+}
+
+/** 작업자로 시작한다. 만들지 못하면 false. */
+function startWithWorker(request) {
+  if (typeof Worker === "undefined") return false;
+  if (!worker) {
+    try {
+      // 주소에 버전을 붙여 예전 파일이 캐시에서 나오는 것을 막는다.
+      const url = new URL(`./worker.js?v=${APP_VERSION}`, import.meta.url);
+      worker = new Worker(url, { type: "module" });
+    } catch {
+      return false;                       // 모듈 작업자를 지원하지 않는 브라우저
+    }
+    worker.addEventListener("message", onWorker);
+    // 작업자가 죽으면 반드시 버린다. 그대로 두면 다음 시도에서 죽은 작업자에게
+    // 말을 걸게 되어 '모델 준비 중' 에서 영영 멈춘다.
+    worker.addEventListener("error", () => {
+      killWorker();
+      workerFailed = true;
+      $("statusText").textContent = "다른 방식으로 다시 시도합니다…";
+      runOnMainThread(request);           // 원인을 따지지 말고 우회한다
+    });
+    worker.addEventListener("messageerror", () => {
+      killWorker();
+      workerFailed = true;
+      runOnMainThread(request);
+    });
+  }
+  worker.postMessage(request);
+  return true;
+}
+
+/** 화면 쪽에서 직접 돌린다(작업자를 못 쓸 때의 대비책). */
+async function runOnMainThread(request) {
+  if (mainThreadBusy) return;
+  mainThreadBusy = true;
+  onMainThread = true;
+  try {
+    const { runTranscription } = await import(`./engine.js?v=${APP_VERSION}`);
+    const result = await runTranscription(request, (e) => onWorker({ data: e }));
+    onWorker({ data: result });
+  } catch (error) {
+    showError(String(error?.message || error));
+  } finally {
+    mainThreadBusy = false;
+  }
+}
+
 function onWorker(event) {
+  if (cancelled) return;          // 중지한 뒤 뒤늦게 오는 결과는 버린다
   const d = event.data;
   if (d.type === "download") {
-    downloaded.set(d.file, d.loaded / d.total);
-    const values = [...downloaded.values()];
-    const ratio = values.reduce((a,b)=>a+b,0) / values.length;
+    // 파일마다 크기가 다르므로 받은 바이트 합계로 계산해야 정확하다.
+    downloadBytes.set(d.file, { loaded: d.loaded, total: d.total });
+    let loaded = 0, total = 0;
+    for (const v of downloadBytes.values()) { loaded += v.loaded; total += v.total; }
+    const ratio = total > 0 ? loaded / total : 0;
     $("fill").style.width = `${5 + ratio * 45}%`;
-    $("statusText").textContent = `음성인식 모델 내려받는 중… ${Math.round(ratio*100)}%`;
+    const mb = (n) => (n / 1048576).toFixed(0);
+    $("statusText").textContent =
+      `모델 내려받는 중… ${Math.round(ratio * 100)}%  (${mb(loaded)} / ${mb(total)} MB)`;
     $("firstRun").classList.add("hidden");
+    armStallNotice();
   } else if (d.type === "device") {
+    // 느릴 때 원인을 바로 알 수 있게, 실제로 무엇으로 도는지 그대로 쓴다.
     $("statusText").textContent = d.device === "webgpu"
-      ? "빠른 모드(WebGPU)로 처리합니다" : "처리 중… (이 기기에서는 시간이 조금 걸립니다)";
-  } else if (d.type === "status") {
-    if (d.text === "받아쓰는 중") $("fill").style.width = "60%";
-    $("statusText").textContent = d.text + "…";
+      ? "빠른 모드(그래픽 가속)로 처리합니다"
+      : `처리 중… (CPU ${d.threads}개 사용)`;
+  } else if (d.type === "plan") {
+    // 말이 있는 부분만 골라 냈다는 걸 알려 준다.
+    const skipped = Math.max(0, d.totalSeconds - d.speechSeconds);
+    planTotal = d.windows;
+    $("statusText").textContent =
+      `받아쓸 구간 ${d.windows}개` +
+      (skipped > 3 ? ` (조용한 ${fmtTime(skipped)} 는 건너뜁니다)` : "");
+  } else if (d.type === "progress") {
+    const ratio = d.total > 0 ? d.done / d.total : 0;
+    $("fill").style.width = `${55 + ratio * 35}%`;
+    const left = d.remaining != null && d.remaining > 3
+      ? ` · 약 ${fmtTime(d.remaining)} 남음`
+      : "";
+    $("statusText").textContent = `받아쓰는 중… ${d.done}/${d.total} 구간${left}`;
+    armStallNotice();
+  } else if (d.type === "download-done") {
+    downloaded.set(d.file, 1);
+  } else if (d.type === "phase") {
+    currentPhase = d.phase;
+    if (d.phase === "loading") {
+      $("statusText").textContent = "모델 준비 중…";
+    } else if (d.phase === "transcribing") {
+      releaseAwake();   // 다운로드가 끝났으면 화면을 붙잡아 둘 이유가 없다
+      $("fill").style.width = "55%";
+      planTotal = 0;
+      $("statusText").textContent = onMainThread
+        ? "받아쓰는 중… (이 기기에서는 화면이 잠시 멈출 수 있습니다)"
+        : "받아쓰는 중…";
+    } else if (d.phase === "diarizing") {
+      $("fill").style.width = "90%";
+      $("statusText").textContent = "화자를 구분하는 중…";
+    } else if (d.phase === "retrying") {
+      $("statusText").textContent = "다른 방식으로 다시 시도합니다…";
+    } else if (d.phase === "diarize-skipped") {
+      $("statusText").textContent = "화자 구분은 건너뜁니다";
+    }
+    armStallNotice();
   } else if (d.type === "done") {
     $("fill").style.width = "100%";
     showResult(d);
   } else if (d.type === "error") {
+    killWorker();          // 한 번 실패한 작업자는 버린다(다음 시도가 멈추지 않도록)
     showError(d.message);
   }
 }
 
+/** 화자가 나뉘었으면 화자별로, 아니면 그냥 텍스트로 정리한다. */
+function formatResult(d) {
+  const chunks = d.chunks || [];
+  if (!chunks.length) return d.text || "(말소리를 찾지 못했습니다)";
+  if (!chunks.some((c) => c.speaker)) return d.text || "(말소리를 찾지 못했습니다)";
+
+  const lines = [];
+  let current = null;
+  for (const chunk of chunks) {
+    if (chunk.speaker !== current) {
+      current = chunk.speaker;
+      lines.push(`\n[${current}]`);
+    }
+    lines.push(chunk.text);
+  }
+  return lines.join("\n").trim();
+}
+
+$("stop").addEventListener("click", () => {
+  cancelled = true;
+  killWorker();                 // 작업자를 즉시 끝낸다
+  releaseAwake();
+  mainThreadBusy = false;
+  clearTimeout(stallTimer);
+  $("prog").classList.add("hidden");
+  $("go").disabled = !picked;
+  $("err").classList.remove("hidden");
+  $("err").className = "note warn";
+  $("err").textContent =
+    "중지했습니다.\n" +
+    "화면에서 직접 처리 중이었다면 잠시 뒤에 멈춥니다. " +
+    "완전히 멈추려면 이 탭을 닫았다 다시 여세요.";
+});
+
+function killWorker() {
+  clearTimeout(stallTimer);
+  if (worker) { try { worker.terminate(); } catch {} }
+  worker = null;
+  downloaded.clear();
+}
+
 function showError(message) {
+  releaseAwake();
   $("prog").classList.add("hidden");
   $("err").classList.remove("hidden");
-  $("err").textContent = "❌ " + message;
+  $("err").textContent = "❌ " + friendlyError(message);
   $("go").disabled = !picked;
 }
 
 function showResult(d) {
+  releaseAwake();
   $("prog").classList.add("hidden");
   $("go").disabled = false;
   lastResult = d;
-  $("out").value = d.text || "(말소리를 찾지 못했습니다)";
+  $("out").value = formatResult(d);
   const speed = d.duration > 0 && d.elapsed > 0 ? (d.duration / d.elapsed).toFixed(1) : "?";
   $("rmeta").innerHTML =
     `길이 <b>${fmtTime(d.duration)}</b>` +
     `처리 <b>${d.elapsed.toFixed(0)}초</b>` +
     `속도 <b>x${speed}</b>` +
-    `모드 <b>${d.device === "webgpu" ? "WebGPU" : "일반"}</b>`;
+    (d.speakers > 1 ? `화자 <b>${d.speakers}명</b>` : "") +
+    `모드 <b>${d.device === "webgpu" ? "WebGPU (빠름)" : "일반 (느림)"}</b>` +
+    (onMainThread ? `<span style="color:var(--warn)">화면에서 직접 처리(느림)</span>` : "");
   $("result").classList.remove("hidden");
   $("result").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
