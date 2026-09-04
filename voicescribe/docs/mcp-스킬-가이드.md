@@ -30,6 +30,8 @@
   (`jwulff/whisper-mcp`, `SmartLittleApps/local-stt-mcp` 등) 대부분 **애플 실리콘 전용**이거나
   검증되지 않은 개인 프로젝트입니다. 우리 코드를 그대로 노출하는 편이 안전하고 기능도 많습니다.
 - 제공 도구: `transcribe_audio`, `list_supported_languages`, `check_setup`
+- `transcribe_audio` 는 `.claude/settings.json` 에서 `ask` 로 설정해 두었습니다.
+  받아쓰기는 CPU 를 오래 쓰므로 매번 확인을 받는 편이 안전합니다.
 - **윈도우**에서는 가상환경 파이썬 경로가 달라 환경변수를 설정해야 합니다.
   `VOICESCRIBE_PYTHON=C:\프로젝트경로\voicescribe\.venv\Scripts\python.exe`
 - 의존성이 없는 파이썬으로 실행되면 서버가 "MCP SDK 가 설치되지 않았습니다" 라는

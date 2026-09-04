@@ -24,6 +24,45 @@
 | 브라우저 UI | 드래그&드롭 업로드, 마이크로 바로 녹음 |
 | Claude Code 연동 | 대화 중에 "이 녹음 받아써 줘" 로 사용 |
 
+## 엔진 고르기 — 한국어라면 SenseVoice 를 먼저 보세요
+
+두 개의 무료 엔진을 제공합니다.
+
+| | **sensevoice** (빠른 모드) | **faster-whisper** (범용) |
+| --- | --- | --- |
+| 지원 언어 | 한·일·중·영·광둥어 **5개** | **100개** |
+| 속도 (4코어 CPU) | **실시간 대비 x16~19** (실측) | 모델 크기에 따라 x1~5 |
+| 설치 용량 | 약 45MB (PyTorch 불필요) | 약 100MB |
+| 모델 크기 | 240MB / 940MB | 75MB ~ 3GB |
+| 모델 받는 곳 | GitHub 릴리스 | Hugging Face |
+| 단어별 타임스탬프 | ✗ | ✓ |
+| Whisper 내장 영어 번역 | ✗ | ✓ |
+| 모델 라이선스 | FunASR (상업적 이용 시 출처 표기) | MIT |
+
+**한국어 회의록이 목적이라면 `sensevoice` 를 먼저 써 보세요.** 속도 차이가 매우 큽니다.
+1시간 녹음이 SenseVoice 로는 3~4분이면 끝납니다.
+
+> 속도 수치의 출처: SenseVoice 는 이 저장소에서 4코어 CPU·GPU 없음 환경에서 직접 측정했습니다.
+> faster-whisper 는 이 환경에서 Hugging Face 접근이 막혀 있어 직접 측정하지 못했고,
+> 위 값은 일반적으로 알려진 범위입니다. 두 엔진 모두 설치해서 짧은 파일로 비교해 보시길 권합니다.
+
+```bash
+pip install -e ".[fast]"            # SenseVoice 설치
+voicescribe 회의.m4a --engine fast  # 사용
+```
+
+실측 예시 (모델에 포함된 공식 샘플 음성):
+
+```
+[한국어] 4.6초 → 조금만 생각을 하면서 살면 훨씬 편할 거야.       (자동 감지: ko)
+[영어]   7.2초 → The tribal chieftain called for the boy…      (자동 감지: en)
+[일본어] 7.2초 → うちの中学は弁当制で持っていきない場合は…        (자동 감지: ja)
+[중국어] 5.6초 → 开饭时间早上9点至下午5点。                      (자동 감지: zh)
+```
+
+> 100개 언어가 필요하거나 단어 단위 타임스탬프가 필요하면 `faster-whisper` 를 쓰세요.
+> 엔진을 지정하지 않으면(`--engine auto`) 설치된 것 중 자동으로 고릅니다.
+
 ## 설치
 
 파이썬 3.10 이상이 필요합니다.
@@ -43,9 +82,10 @@ pip install -e ".[all]"
 가볍게 시작하고 싶다면 필요한 것만 고르세요.
 
 ```bash
-pip install -e ".[stt]"        # 받아쓰기만 (권장 최소 구성)
-pip install -e ".[stt,web]"    # 받아쓰기 + 브라우저 UI
-pip install -e ".[stt,mcp]"    # 받아쓰기 + Claude Code 연동
+pip install -e ".[fast]"       # 한국어 고속 엔진 (가장 가벼움, 45MB)
+pip install -e ".[stt]"        # 100개 언어 Whisper 엔진
+pip install -e ".[fast,web]"   # + 브라우저 UI
+pip install -e ".[fast,mcp]"   # + Claude Code 연동
 ```
 
 설치가 잘 됐는지 확인합니다.
@@ -125,8 +165,15 @@ GPU 없이 CPU 만으로 돌릴 때의 기준입니다.
 | `tiny` | 75MB | 매우 빠름 | 내용만 급히 확인 |
 | `base` | 145MB | 빠름 | 기본값 |
 | `small` | 480MB | 보통 | 무난한 품질 |
-| `large-v3-turbo` | 1.6GB | 느림 | **한국어 회의록 권장** |
+| `large-v3-turbo` | 1.6GB | 느림 | Whisper 중에서는 한국어에 가장 나음 |
 | `large-v3` | 3GB | 매우 느림 | 최고 정확도 |
+
+SenseVoice 엔진의 모델은 두 가지입니다.
+
+| 모델 | 크기 | 비고 |
+| --- | --- | --- |
+| `sensevoice` | 240MB | int8 양자화, 기본값 |
+| `sensevoice-fp32` | 940MB | CPU 에서는 오히려 더 빠르고 정확할 때가 많음 |
 
 모델은 처음 쓸 때 한 번만 자동으로 내려받아 저장됩니다. 이후에는 인터넷 없이 동작합니다.
 
@@ -159,16 +206,24 @@ voicescribe mcp        # 또는 voicescribe-mcp
 두 가지 방법이 있습니다.
 
 ```bash
-# 1) Whisper 내장 번역 — 빠르지만 영어로만 번역됩니다
+# 1) Whisper 내장 번역 — 추가 설치가 전혀 없지만 영어로만 번역됩니다
 voicescribe 회의.m4a --task translate
+```
 
-# 2) 별도 번역 모델 — 아무 언어로나 번역됩니다
-pip install -e ".[translate]"          # 가벼움, 오프라인 (Argos)
-voicescribe 회의.m4a -t ja             # 일본어로
+아무 언어로나 번역하려면 별도 모델이 필요합니다. **둘 다 용량이 큽니다.**
 
-pip install -e ".[translate-hf]"       # 정확함, 용량 큼 (M2M100)
+| 번역기 | 설치 명령 | 용량 | 비고 |
+| --- | --- | --- | --- |
+| `hf` (M2M100) | `pip install -e ".[translate-hf]"` | PyTorch 2.5GB + 모델 1.9GB | 100개 언어, MIT |
+| `argos` | `pip install -e ".[translate]"` | **PyTorch·CUDA 포함 수 GB** | 한↔일 등은 영어를 거침 |
+
+```bash
 voicescribe 회의.m4a -t ja --translator hf
 ```
+
+> ⚠️ `argostranslate` 는 문장 분리에 stanza 를 쓰고, stanza 가 PyTorch 와 NVIDIA CUDA
+> 패키지까지 끌어옵니다. GPU 가 없어도 그렇습니다. 의존성을 빼고 설치하면 import 자체가
+> 실패해서 우회할 방법이 없습니다(직접 확인함).
 
 기본 번역 모델은 **M2M100(MIT 라이선스)** 으로 상업적 이용에 제약이 없습니다.
 NLLB-200 은 더 정확하지만 **비상업(CC-BY-NC)** 라이선스라 기본값에서 제외했습니다.
@@ -179,14 +234,20 @@ NLLB-200 은 더 정확하지만 **비상업(CC-BY-NC)** 라이선스라 기본�
 voicescribe 회의.m4a --diarize
 ```
 
-추가 설치 없이 동작하는 **간이 방식**이 기본입니다(음색을 비교해 묶습니다).
-더 정확하게 하려면 pyannote 를 씁니다.
+세 가지 방식을 자동으로 시도합니다.
+
+| 방식 | 추가 설치 | 정확도 | 비고 |
+| --- | --- | --- | --- |
+| `sherpa` (권장) | `pip install -e ".[fast]"` | 좋음 | 토큰·PyTorch 불필요. 실측 x7 실시간 |
+| `pyannote` | `pip install -e ".[diarize]"` | 가장 좋음 | HF 무료 토큰 + 약관 동의 + PyTorch 2.5GB |
+| `simple` | 없음 | 보통 | numpy 만으로 동작 |
+
+실제 4명이 말하는 40초 오디오에서 `sherpa` 방식은 4명을 정확히 구분했습니다.
 
 ```bash
-pip install -e ".[diarize]"
-# https://huggingface.co/pyannote/speaker-diarization-3.1 에서 약관 동의 후
-export HF_TOKEN=hf_xxxxx
-voicescribe 회의.m4a --diarize
+pip install -e ".[fast]"
+voicescribe 회의.m4a --diarize                    # sherpa 자동 사용
+voicescribe 회의.m4a --diarize --max-speakers 3   # 인원을 알면 알려 주면 더 정확
 ```
 
 ## 자주 묻는 것
@@ -202,6 +263,11 @@ voicescribe 회의.m4a --diarize
 
 **Q. 윈도우에서 되나요?**
 됩니다. `python -m venv .venv` → `.venv\Scripts\activate` → `pip install -e ".[all]"` 순서로 설치하세요.
+
+**Q. SenseVoice 결과에서 띄어쓰기가 어색해요.**
+SenseVoice 는 한국어·일본어·중국어에서 띄어쓰기가 일정하지 않을 때가 있습니다(모델 특성).
+내용 자체는 정확하므로 회의록 용도로는 문제없지만, 띄어쓰기가 중요하면
+`--engine faster-whisper -m large-v3-turbo` 를 쓰세요.
 
 **Q. 인식이 자꾸 틀려요.**
 ① 더 큰 모델(`-m large-v3-turbo`)을 쓰고 ② 언어를 직접 지정하고(`-l ko`)
@@ -225,6 +291,8 @@ MIT. 사용하는 모델들의 라이선스는 각각 다음과 같습니다.
 | 구성 요소 | 라이선스 | 상업적 이용 |
 | --- | --- | --- |
 | faster-whisper / Whisper 모델 | MIT | 가능 |
+| sherpa-onnx (코드) | Apache-2.0 | 가능 |
+| SenseVoice 모델 가중치 | FunASR Model License | 가능(**출처 표기 필요**) |
 | M2M100 (기본 번역) | MIT | 가능 |
 | NLLB-200 (선택) | CC-BY-NC | **불가** |
 | pyannote (선택) | MIT (모델은 약관 동의 필요) | 가능 |

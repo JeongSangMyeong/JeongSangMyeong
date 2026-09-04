@@ -1,7 +1,12 @@
 """Argos Translate 기반 번역기 — 완전 무료·오프라인.
 
-한 번 언어팩을 내려받으면 인터넷 없이 동작한다. 품질은 상용 번역기보다는
-떨어지지만 회의록 요약 용도로는 충분하고, 라이선스 제약이 없다(MIT).
+한 번 언어팩을 내려받으면 인터넷 없이 동작한다. 품질은 상용 번역기보다 떨어지지만
+회의록 용도로는 충분하고 라이선스 제약이 없다(MIT).
+
+⚠ 설치 용량 주의: argostranslate 는 문장 분리에 stanza 를 쓰는데, stanza 가 PyTorch 와
+NVIDIA CUDA 패키지를 끌어온다(GPU 가 없어도). 의존성을 빼고 설치하면 import 자체가
+실패하므로(``argostranslate.translate`` -> ``sbd`` -> ``stanza``) 우회 방법도 없다.
+또한 한국어-일본어 같은 조합은 직접 언어팩이 없어 영어를 거친다(품질 손실).
 """
 
 from __future__ import annotations
@@ -15,7 +20,7 @@ class ArgosTranslator(Translator):
     """argostranslate 래퍼."""
 
     name = "argos"
-    description = "무료·오프라인 번역(언어팩 최초 1회 다운로드). 상업적 이용 제약 없음."
+    description = "무료·오프라인 번역(언어팩 다운로드). 설치 용량이 큼(PyTorch 포함 수 GB)."
     needs_download = True
 
     def __init__(self) -> None:
@@ -33,7 +38,10 @@ class ArgosTranslator(Translator):
         return (
             "설치 방법:\n"
             '  pip install "voicescribe[translate]"\n'
-            "  (또는 직접: pip install argostranslate)"
+            "  (또는 직접: pip install argostranslate)\n"
+            "⚠ 용량 주의: argostranslate 는 문장 분리에 stanza 를 쓰고, stanza 가 PyTorch 와\n"
+            "  NVIDIA CUDA 패키지까지 끌어옵니다. GPU 가 없어도 수 GB 를 내려받습니다.\n"
+            "  가볍게 쓰려면 --task translate (영어로만 번역, 추가 설치 없음)를 고려하세요."
         )
 
     def _ensure_pair(self, source: str, target: str) -> None:

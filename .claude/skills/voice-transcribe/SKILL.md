@@ -24,32 +24,45 @@ cd voicescribe
 uv venv .venv --python 3.11 && uv pip install --python .venv/bin/python -e ".[all]"
 ```
 
-`[음성인식 엔진]` 항목에서 `faster-whisper` 가 ❌ 라면 실제 받아쓰기가 되지 않는다.
-그때는 사용자에게 다음을 안내하고 동의를 받은 뒤 설치한다(모델 다운로드로 수백 MB~3GB 를 쓴다).
+`[음성인식 엔진]` 항목에 `demo` 만 ✅ 라면 실제 받아쓰기가 되지 않는다.
+사용자에게 안내하고 동의를 받은 뒤 설치한다(첫 실행 시 모델 다운로드가 있다).
 
 ```bash
-cd voicescribe && uv pip install --python .venv/bin/python "faster-whisper"
+# 한국어 위주라면 이것 하나로 충분하다 (가볍고 빠르다)
+cd voicescribe && uv pip install --python .venv/bin/python sherpa-onnx
+
+# 100개 언어가 필요하면
+cd voicescribe && uv pip install --python .venv/bin/python faster-whisper
 ```
 
-## 2. 모델 고르기
+## 2. 엔진과 모델 고르기
 
-사용자가 지정하지 않았다면 아래 기준으로 **먼저 제안하고 확인을 받는다**. 큰 모델은 CPU 에서 매우 느리다.
+**한국어·일본어·중국어·영어라면 `--engine fast`(SenseVoice)를 먼저 제안한다.**
+같은 CPU 에서 Whisper 보다 훨씬 빠르다(실측 실시간 대비 x16~19).
 
-| 모델 | 크기 | CPU 속도(대략) | 추천 상황 |
-| --- | --- | --- | --- |
-| `tiny` | 75MB | 매우 빠름 | 내용 확인만 급할 때 |
-| `base` | 145MB | 빠름 | 기본값, 짧은 메모 |
-| `small` | 480MB | 보통 | 무난한 품질 |
-| `large-v3-turbo` | 1.6GB | 느림 | **한국어 회의록 권장** |
-| `large-v3` | 3GB | 매우 느림 | 최고 정확도가 필요할 때 |
+| 상황 | 엔진 | 모델 |
+| --- | --- | --- |
+| 한/일/중/영 녹음 | `--engine fast` | `sensevoice` (기본) |
+| 그 외 언어, 또는 단어별 타임스탬프 필요 | `--engine faster-whisper` | `large-v3-turbo` |
+| 내용만 급히 확인 | `--engine faster-whisper` | `tiny` 또는 `base` |
 
-1시간짜리 녹음을 `large-v3-turbo` 로 돌리면 4코어 CPU 기준 30분 이상 걸릴 수 있다. 실행 전에 알려 준다.
+Whisper 모델 크기: `tiny` 75MB · `base` 145MB · `small` 480MB ·
+`large-v3-turbo` 1.6GB · `large-v3` 3GB.
+
+**실행 전에 예상 시간을 반드시 알려 준다.** 1시간짜리 녹음이면
+SenseVoice 는 3~4분, Whisper `large-v3-turbo` 는 30분 이상 걸릴 수 있다.
+큰 모델을 쓰기 전에는 사용자 확인을 받는다.
 
 ## 3. 실행
 
 ```bash
+# 한국어 (권장)
 cd voicescribe && .venv/bin/python -m voicescribe.cli transcribe "<파일경로>" \
-  -l ko -m large-v3-turbo -f txt srt -o "<저장폴더>"
+  --engine fast -l ko -f txt srt -o "<저장폴더>"
+
+# 그 외 언어
+cd voicescribe && .venv/bin/python -m voicescribe.cli transcribe "<파일경로>" \
+  --engine faster-whisper -l fr -m large-v3-turbo -f txt -o "<저장폴더>"
 ```
 
 자주 쓰는 옵션:
@@ -57,7 +70,7 @@ cd voicescribe && .venv/bin/python -m voicescribe.cli transcribe "<파일경로>
 - `-l ko` — 언어 지정. 생략하거나 `auto` 면 자동 감지(짧은 파일은 틀릴 수 있으니 아는 경우 지정한다).
 - `-f txt srt md json csv vtt` — 여러 형식을 한 번에 저장.
 - `-o 폴더` — 저장 위치. 생략하면 화면에만 출력한다.
-- `--diarize` — 화자 구분(누가 말했는지).
+- `--diarize` — 화자 구분(누가 말했는지). 인원을 알면 `--max-speakers N` 을 함께 주면 더 정확하다.
 - `-t en --bilingual` — 영어로 번역해 원문과 나란히 저장.
 - `--prompt "카카오, 리액트, 배포"` — 고유명사를 미리 알려 주면 인식률이 오른다.
 - `--timestamps` — txt 에 시간 표시.

@@ -41,7 +41,7 @@ class HuggingFaceTranslator(Translator):
     """transformers 다국어 번역 모델 래퍼."""
 
     name = "hf"
-    description = "무료·로컬 신경망 번역(M2M100 기본, 100개 언어). 첫 실행 시 모델 다운로드."
+    description = "무료·로컬 신경망 번역(M2M100 기본, 100개 언어). PyTorch 필요, 모델 약 1.9GB."
     needs_download = True
 
     def __init__(self, model_name: str = DEFAULT_MODEL) -> None:

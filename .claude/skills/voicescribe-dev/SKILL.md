@@ -51,6 +51,26 @@ cd voicescribe && .venv/bin/python -m ruff check src tests
   판단하면 마지막 완료 이벤트가 유실된다(이미 한 번 발생했던 버그).
 - 화면 문구를 바꿨으면 `tests/test_cli_web_mcp.py::TestWebApi` 를 돌려 확인한다.
 
+## 검증된 함정 (건드리기 전에 읽을 것)
+
+아래는 전부 이 저장소에서 직접 재현해 확인한 것이다. 되돌리지 말 것.
+
+1. **SenseVoice 모델 이름** — `sherpa-onnx-sense-voice-...-2024-07-17` 만 쓴다.
+   이름이 비슷한 `...-int8-2025-09-09` 는 광둥어 전용 파인튜닝이라 한국어가 깨지고
+   `language=` 인자도 무시한다. `tests/test_sensevoice.py` 가 이 이름을 검사한다.
+2. **VAD 청킹은 필수** — SenseVoice 는 긴 오디오를 통째로 넣으면 메모리가 제곱으로 늘어난다
+   (15분 → 13GB). 속도 최적화가 아니라 동작 조건이다.
+3. **VAD 여유 0.8초** — 잘린 구간(`vad.front.samples`)을 그대로 쓰면 한국어 띄어쓰기가 깨진다.
+   반드시 **원본 오디오**에서 앞뒤 0.8초 여유를 두고 다시 잘라야 한다.
+4. **sherpa VAD 프레임은 512 샘플 고정**(16kHz 기준). 다른 값을 넣으면 조용히 오작동한다.
+   또 이 API 의 시간 단위는 **초**다(pip `silero-vad` 패키지는 밀리초라 헷갈리기 쉽다).
+5. **화자 분리 임계값 0.8** — sherpa 기본값 0.5 는 같은 사람을 여러 명으로 쪼갠다.
+6. **모델 URL 의 `speaker-recongition-models` 오타는 업스트림 그대로**다. 고치면 404.
+7. **argostranslate 는 가볍게 설치할 수 없다** — `argostranslate.translate` 가 최상위에서
+   `stanza` 를 import 하고, stanza 가 PyTorch·CUDA 를 끌어온다. `--no-deps` 우회는 실패한다.
+8. **libsndfile 은 m4a/webm 을 못 읽는다** — 브라우저 녹음이 바로 그 형식이다. PyAV 가 먼저다.
+9. **pydub 은 쓰지 않는다** — `ffprobe` 실행파일까지 요구한다.
+
 ## MCP 서버 수정
 
 - `src/voicescribe/mcp_server.py` 는 mcp 1.x(`FastMCP`)와 2.x(`MCPServer`)를 모두 지원한다.

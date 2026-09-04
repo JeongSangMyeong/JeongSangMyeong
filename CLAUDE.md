@@ -12,10 +12,13 @@ cd voicescribe
 uv venv .venv --python 3.11
 uv pip install --python .venv/bin/python -e ".[all]"
 
-.venv/bin/python -m voicescribe.cli doctor          # 설치 진단
-.venv/bin/python -m voicescribe.cli web             # 브라우저 UI
-.venv/bin/python -m voicescribe.cli 녹음.m4a -l ko   # 받아쓰기
+.venv/bin/python -m voicescribe.cli doctor                        # 설치 진단
+.venv/bin/python -m voicescribe.cli web                           # 브라우저 UI
+.venv/bin/python -m voicescribe.cli 녹음.m4a --engine fast -l ko   # 받아쓰기(한국어 고속)
 ```
+
+엔진은 두 가지다. **한/일/중/영 녹음이면 `--engine fast`(SenseVoice)가 훨씬 빠르다**
+(실측 실시간 대비 x16~19). 그 외 언어나 단어별 타임스탬프가 필요하면 `faster-whisper` 를 쓴다.
 
 ## 개발 시 지켜야 할 것
 

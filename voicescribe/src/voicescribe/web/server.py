@@ -148,10 +148,23 @@ def create_app() -> Any:
     @app.get("/api/config")
     def config() -> Any:
         from ..engines import list_engines
-        from ..engines.faster_whisper_engine import MODEL_CATALOG
+        from ..engines.faster_whisper_engine import MODEL_CATALOG as WHISPER_MODELS
+        from ..engines.sensevoice_engine import MODEL_CATALOG as SENSEVOICE_MODELS
         from ..languages import supported_languages
         from ..output import FORMAT_DESCRIPTIONS
         from ..translate import list_translators
+
+        # 설치된 엔진의 모델만 보여 준다(없으면 기본으로 Whisper 목록).
+        installed = {e.name for e in list_engines() if e.is_available()}
+        models: dict[str, str] = {}
+        if "faster-whisper" in installed:
+            models.update(WHISPER_MODELS)
+        if "sensevoice" in installed:
+            models.update(
+                {k: f"{v} · 한·일·중·영·광둥어 전용" for k, v in SENSEVOICE_MODELS.items()}
+            )
+        if not models:
+            models = dict(WHISPER_MODELS)
 
         return JSONResponse(
             {
@@ -160,7 +173,7 @@ def create_app() -> Any:
                     {"code": code, "en": en, "ko": ko} for code, en, ko in supported_languages()
                 ],
                 "formats": FORMAT_DESCRIPTIONS,
-                "models": MODEL_CATALOG,
+                "models": models,
                 "engines": [
                     {"name": e.name, "available": e.is_available(), "description": e.description}
                     for e in list_engines()

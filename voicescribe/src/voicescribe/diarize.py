@@ -1,19 +1,19 @@
 """화자 분리(누가 언제 말했는지).
 
-두 가지 방법을 지원한다.
+세 가지 방법을 지원하며, ``method="auto"`` 면 좋은 것부터 자동으로 시도한다.
 
-1. **pyannote.audio** — 정확하지만 Hugging Face 무료 토큰이 필요하고,
-   모델 페이지에서 이용약관에 동의해야 한다. 설치·설정이 번거롭다.
-2. **간이 방식(기본값)** — 추가 설치·다운로드 없이 numpy 만으로 동작한다.
-   각 발화 구간에서 MFCC 특징을 뽑아 목소리가 비슷한 구간끼리 묶는다.
-   정확도는 pyannote 보다 떨어지지만 "2~3명이 번갈아 말하는 회의록" 정도는 잘 나눈다.
-
-정확도가 중요하면 pyannote 를, 바로 쓰고 싶으면 간이 방식을 쓰면 된다.
+1. **sherpa-onnx (권장)** — 무료, 토큰 불필요, PyTorch 불필요(약 45MB).
+   모델은 GitHub 릴리스에서 받는다. 1시간 오디오를 4코어 CPU 로 약 10분에 처리한다.
+2. **pyannote.audio** — 가장 정확하지만 Hugging Face 무료 토큰이 필요하고,
+   모델 페이지에서 약관에 동의해야 하며 PyTorch(약 2.5GB)를 끌고 온다.
+3. **간이 방식** — 추가 설치·다운로드가 전혀 없다. numpy 로 MFCC 를 뽑아
+   목소리가 비슷한 구간끼리 묶는다. "2~3명이 번갈아 말하는 회의록" 정도는 잘 나눈다.
 """
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -33,6 +33,21 @@ _N_MFCC = 13
 
 class DiarizationError(RuntimeError):
     """화자 분리에 실패했을 때."""
+
+
+#: sherpa-onnx 화자 분리에 필요한 모델(모두 무료, 토큰 불필요).
+_SEGMENTATION_URL = (
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/"
+    "sherpa-onnx-pyannote-segmentation-3-0.tar.bz2"
+)
+#: 주의: 아래 URL 의 'recongition' 오타는 업스트림 릴리스 태그 그대로다. 고치면 404 가 난다.
+_EMBEDDING_URL = (
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/"
+    "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+)
+#: 군집 임계값. 기본값 0.5 는 같은 사람을 여러 명으로 쪼개는 경향이 강하다
+#: (4명짜리 파일에서 10명이 나옴). 0.8 이 훨씬 안정적이다.
+_CLUSTER_THRESHOLD = 0.8
 
 
 # --------------------------------------------------------------------------- #
@@ -246,6 +261,121 @@ def diarize_simple(
     return [f"화자{order[label]}" for label in best_labels]
 
 
+def _model_cache_dir() -> Path:
+    """모델을 저장할 폴더."""
+    env = os.environ.get("VOICESCRIBE_MODEL_DIR")
+    return Path(env).expanduser() if env else Path.home() / ".cache" / "voicescribe"
+
+
+def _ensure_sherpa_models() -> tuple[str, str]:
+    """sherpa-onnx 화자 분리 모델을 확보한다(없으면 내려받는다)."""
+    import tarfile
+    import urllib.request
+
+    root = _model_cache_dir()
+    root.mkdir(parents=True, exist_ok=True)
+    segmentation = root / "sherpa-onnx-pyannote-segmentation-3-0" / "model.onnx"
+    embedding = root / "3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+
+    if not segmentation.exists():
+        archive = root / "sherpa-onnx-pyannote-segmentation-3-0.tar.bz2"
+        try:
+            urllib.request.urlretrieve(_SEGMENTATION_URL, archive)  # noqa: S310
+            with tarfile.open(archive, "r:bz2") as tar:
+                for member in tar.getmembers():  # 경로 탈출 방지
+                    if (root / member.name).resolve().is_relative_to(root.resolve()) is False:
+                        raise DiarizationError(f"안전하지 않은 경로: {member.name}")
+                tar.extractall(root)  # noqa: S202
+            archive.unlink(missing_ok=True)
+        except DiarizationError:
+            raise
+        except Exception as exc:
+            raise DiarizationError(
+                f"화자 분리 모델을 내려받지 못했습니다: {exc}\n직접 받으려면: {_SEGMENTATION_URL}"
+            ) from exc
+
+    if not embedding.exists():
+        try:
+            urllib.request.urlretrieve(_EMBEDDING_URL, embedding)  # noqa: S310
+        except Exception as exc:
+            raise DiarizationError(
+                f"화자 임베딩 모델을 내려받지 못했습니다: {exc}\n직접 받으려면: {_EMBEDDING_URL}"
+            ) from exc
+
+    return str(segmentation), str(embedding)
+
+
+def diarize_sherpa(
+    audio: AudioBuffer,
+    result: TranscriptionResult,
+    *,
+    min_speakers: int | None = None,
+    max_speakers: int | None = None,
+) -> list[str]:
+    """sherpa-onnx 로 화자를 나눈다(토큰·PyTorch 불필요)."""
+    try:
+        import sherpa_onnx
+    except ImportError as exc:
+        raise DiarizationError(
+            "sherpa-onnx 가 설치되지 않았습니다.\n"
+            '설치: pip install "voicescribe[fast]"  (또는 pip install sherpa-onnx)'
+        ) from exc
+
+    import numpy as np
+
+    segmentation, embedding = _ensure_sherpa_models()
+    known_speakers = min_speakers if min_speakers and min_speakers == max_speakers else None
+
+    config = sherpa_onnx.OfflineSpeakerDiarizationConfig(
+        segmentation=sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
+            pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(
+                model=segmentation, window_shift_ratio=0.1
+            )
+        ),
+        embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(
+            model=embedding, num_threads=min(8, os.cpu_count() or 4)
+        ),
+        clustering=sherpa_onnx.FastClusteringConfig(
+            num_clusters=known_speakers or -1, threshold=_CLUSTER_THRESHOLD
+        ),
+        min_duration_on=0.3,
+        min_duration_off=0.5,
+    )
+    if not config.validate():
+        raise DiarizationError("sherpa-onnx 화자 분리 설정이 올바르지 않습니다.")
+
+    engine = sherpa_onnx.OfflineSpeakerDiarization(config)
+    if audio.sample_rate != engine.sample_rate:
+        raise DiarizationError(
+            f"이 모델은 {engine.sample_rate}Hz 오디오가 필요합니다(현재 {audio.sample_rate}Hz)."
+        )
+
+    turns = [
+        (float(r.start), float(r.end), f"SPK{int(r.speaker):02d}")
+        for r in engine.process(np.asarray(audio.samples, dtype=np.float32)).sort_by_start_time()
+    ]
+    return _labels_from_turns(turns, result)
+
+
+def _labels_from_turns(
+    turns: list[tuple[float, float, str]], result: TranscriptionResult
+) -> list[str]:
+    """화자 구간 목록을 받아쓰기 구간에 매핑한다(가장 많이 겹치는 화자를 고른다)."""
+    mapping: dict[str, str] = {}
+    labels: list[str] = []
+    for seg in result.segments:
+        overlaps: dict[str, float] = {}
+        for start, end, speaker in turns:
+            overlap = min(seg.end, end) - max(seg.start, start)
+            if overlap > 0:
+                overlaps[speaker] = overlaps.get(speaker, 0.0) + overlap
+        raw = max(overlaps, key=lambda k: overlaps[k]) if overlaps else "SPK00"
+        if raw not in mapping:
+            mapping[raw] = f"화자{len(mapping) + 1}"
+        labels.append(mapping[raw])
+    return labels
+
+
 def diarize_pyannote(
     audio: AudioBuffer,
     result: TranscriptionResult,
@@ -288,21 +418,11 @@ def diarize_pyannote(
         kwargs["max_speakers"] = max_speakers
     annotation = pipeline({"waveform": waveform, "sample_rate": audio.sample_rate}, **kwargs)
 
-    # 각 받아쓰기 구간과 가장 많이 겹치는 화자를 고른다.
-    turns = [(turn.start, turn.end, speaker) for turn, _, speaker in annotation.itertracks(yield_label=True)]
-    mapping: dict[str, str] = {}
-    labels: list[str] = []
-    for seg in result.segments:
-        overlaps: dict[str, float] = {}
-        for start, end, speaker in turns:
-            overlap = min(seg.end, end) - max(seg.start, start)
-            if overlap > 0:
-                overlaps[speaker] = overlaps.get(speaker, 0.0) + overlap
-        raw = max(overlaps, key=overlaps.get) if overlaps else "SPEAKER_00"  # type: ignore[arg-type]
-        if raw not in mapping:
-            mapping[raw] = f"화자{len(mapping) + 1}"
-        labels.append(mapping[raw])
-    return labels
+    turns = [
+        (float(turn.start), float(turn.end), str(speaker))
+        for turn, _, speaker in annotation.itertracks(yield_label=True)
+    ]
+    return _labels_from_turns(turns, result)
 
 
 def apply_diarization(
@@ -316,23 +436,35 @@ def apply_diarization(
     """화자 라벨을 결과에 채워 넣는다(제자리 수정).
 
     Args:
-        method: ``"auto"``(pyannote 가 있으면 그것을, 없으면 간이 방식),
-            ``"pyannote"``, ``"simple"`` 중 하나.
+        method: ``"auto"``(좋은 것부터 자동 선택), ``"sherpa"``, ``"pyannote"``, ``"simple"``.
     """
-    labels: list[str]
-    if method in ("auto", "pyannote"):
-        try:
-            labels = diarize_pyannote(
-                audio, result, min_speakers=min_speakers, max_speakers=max_speakers
-            )
-        except DiarizationError:
-            if method == "pyannote":
-                raise
-            labels = diarize_simple(
-                audio, result, min_speakers=min_speakers, max_speakers=max_speakers
-            )
+    if not result.segments:
+        return result
+
+    kwargs = {"min_speakers": min_speakers, "max_speakers": max_speakers}
+    labels: list[str] | None = None
+
+    if method == "auto":
+        # 정확도·설치 편의를 함께 고려한 순서로 시도한다.
+        for backend in (diarize_pyannote, diarize_sherpa):
+            try:
+                labels = backend(audio, result, **kwargs)  # type: ignore[operator]
+                break
+            except DiarizationError:
+                continue
+        if labels is None:
+            labels = diarize_simple(audio, result, **kwargs)  # type: ignore[arg-type]
+    elif method == "sherpa":
+        labels = diarize_sherpa(audio, result, **kwargs)  # type: ignore[arg-type]
+    elif method == "pyannote":
+        labels = diarize_pyannote(audio, result, **kwargs)  # type: ignore[arg-type]
+    elif method == "simple":
+        labels = diarize_simple(audio, result, **kwargs)  # type: ignore[arg-type]
     else:
-        labels = diarize_simple(audio, result, min_speakers=min_speakers, max_speakers=max_speakers)
+        raise DiarizationError(
+            f"'{method}' 는 알 수 없는 화자 분리 방식입니다. "
+            "auto / sherpa / pyannote / simple 중에서 고르세요."
+        )
 
     for seg, label in zip(result.segments, labels, strict=False):
         seg.speaker = label
