@@ -16,14 +16,28 @@
 
 ```json
 "voicescribe": {
-  "command": "${VOICESCRIBE_PYTHON:-${CLAUDE_PROJECT_DIR}/voicescribe/.venv/bin/python}",
-  "args": ["-m", "voicescribe.mcp_server"],
-  "env": { "PYTHONPATH": "${CLAUDE_PROJECT_DIR}/voicescribe/src" }
+  "command": "${VOICESCRIBE_PYTHON:-python3}",
+  "args": ["${CLAUDE_PROJECT_DIR}/voicescribe/scripts/mcp_launcher.py"]
 }
 ```
 
-`${VAR:-기본값}` 문법은 Claude Code 가 공식 지원합니다. 기본값으로 프로젝트 가상환경의
-파이썬을 가리키므로 README 대로 설치했다면 추가 설정이 필요 없습니다.
+**한 번 실패했다가 고친 부분입니다.** 처음에는 이렇게 썼습니다.
+
+```json
+"command": "${VOICESCRIBE_PYTHON:-${CLAUDE_PROJECT_DIR}/voicescribe/.venv/bin/python}"
+```
+
+Claude Code 는 `${VAR}` 와 `${VAR:-기본값}` 을 지원하지만 **중첩은 지원하지 않습니다.**
+위 설정은 확장되지 않고 문자 그대로 남아 서버가 이렇게 죽었습니다.
+
+```
+voicescribe (ENOENT): posix_spawn '${CLAUDE_PROJECT_DIR/voicescribe/.venv/bin/python}'
+```
+
+그래서 실행기(`scripts/mcp_launcher.py`)를 두는 방식으로 바꿨습니다. 아무 파이썬으로나
+실행되며(표준 라이브러리만 사용), 안에서 가상환경 파이썬을 찾아 넘겨줍니다.
+리눅스·맥의 `.venv/bin/python` 과 윈도우의 `.venv\Scripts\python.exe` 를 모두 처리하므로
+운영체제별로 설정을 바꿀 필요가 없고, 가상환경이 없으면 만드는 방법을 안내합니다.
 
 - **비용: 무료.** API 키가 필요 없고 음성이 외부로 나가지 않습니다.
 - 왜 직접 만들었나: 검색해 보면 whisper MCP 서버가 여러 개 있지만
@@ -32,18 +46,21 @@
 - 제공 도구: `transcribe_audio`, `list_supported_languages`, `check_setup`
 - `transcribe_audio` 는 `.claude/settings.json` 에서 `ask` 로 설정해 두었습니다.
   받아쓰기는 CPU 를 오래 쓰므로 매번 확인을 받는 편이 안전합니다.
-- **윈도우**에서는 가상환경 파이썬 경로가 달라 환경변수를 설정해야 합니다.
-  `VOICESCRIBE_PYTHON=C:\프로젝트경로\voicescribe\.venv\Scripts\python.exe`
-- 의존성이 없는 파이썬으로 실행되면 서버가 "MCP SDK 가 설치되지 않았습니다" 라는
-  안내와 함께 종료됩니다. 그때는 경로를 확인하세요.
+- 윈도우 포함 모든 운영체제에서 추가 설정 없이 동작합니다.
+  특정 파이썬을 강제하려면 `VOICESCRIBE_PYTHON` 환경변수에 경로를 넣으세요.
+- 설치가 안 된 상태면 표준에러로 설치 명령을 안내하고 종료합니다.
 
 ### 2. `context7` — 라이브러리 최신 문서
 
 ```json
-"context7": { "type": "http", "url": "https://mcp.context7.com/mcp" }
+"context7": { "command": "npx", "args": ["-y", "@upstash/context7-mcp"] }
 ```
 
 - **비용: 무료.** API 키 없이 쓸 수 있고, 무료 키를 넣으면 요청 제한만 완화됩니다.
+- 원격 HTTP 주소(`https://mcp.context7.com/mcp`)로도 붙을 수 있지만 그쪽은 **OAuth 인증을
+  요구합니다.** 인증 없이 바로 쓰려면 위처럼 npx 로 로컬 실행하는 편이 낫습니다.
+  (키를 발급받았다면 `"env": { "CONTEXT7_API_KEY": "..." }` 를 추가하세요.)
+- Node.js 가 필요합니다.
 - 왜 유용한가: faster-whisper, FastAPI 같은 라이브러리의 API 는 자주 바뀝니다.
   실제로 이 프로젝트를 만들다가 **MCP SDK 2.x 에서 `FastMCP` 가 `MCPServer` 로 이름이 바뀐 것**을
   발견했습니다. 기억에 의존하면 이런 걸 놓칩니다.

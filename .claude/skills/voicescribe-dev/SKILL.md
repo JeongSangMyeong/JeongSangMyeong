@@ -70,6 +70,9 @@ cd voicescribe && .venv/bin/python -m ruff check src tests
    `stanza` 를 import 하고, stanza 가 PyTorch·CUDA 를 끌어온다. `--no-deps` 우회는 실패한다.
 8. **libsndfile 은 m4a/webm 을 못 읽는다** — 브라우저 녹음이 바로 그 형식이다. PyAV 가 먼저다.
 9. **pydub 은 쓰지 않는다** — `ffprobe` 실행파일까지 요구한다.
+10. **`.mcp.json` 에 중첩 변수 확장을 쓰지 않는다** — `${VAR:-${OTHER}/경로}` 는 확장되지
+    않고 문자 그대로 남아 서버가 ENOENT 로 죽는다. 대신 `scripts/mcp_launcher.py` 를
+    거치게 한다. `tests/test_mcp_launcher.py` 가 이 회귀를 막는다.
 
 ## MCP 서버 수정
 

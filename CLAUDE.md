@@ -40,6 +40,11 @@ uv pip install --python .venv/bin/python -e ".[all]"
 | `context7` | 라이브러리 최신 문서를 가져온다 | 무료(키 없이 사용 가능, 키 넣으면 제한 완화) |
 | `playwright` | 브라우저를 열어 웹 UI 를 실제로 테스트한다 | 무료 |
 
-`voicescribe` MCP 서버는 기본적으로 `voicescribe/.venv/bin/python` 을 사용한다.
-다른 파이썬을 쓰려면 환경변수 `VOICESCRIBE_PYTHON` 에 실행 파일 경로를 넣는다.
-윈도우라면 `VOICESCRIBE_PYTHON=<프로젝트경로>\voicescribe\.venv\Scripts\python.exe` 로 설정한다.
+`voicescribe` MCP 서버는 `voicescribe/scripts/mcp_launcher.py` 를 거쳐 실행된다.
+런처가 `.venv/bin/python`(윈도우는 `.venv\Scripts\python.exe`)을 알아서 찾으므로
+운영체제별로 설정을 바꿀 필요가 없다. 다른 파이썬을 쓰려면 `VOICESCRIBE_PYTHON` 에
+경로를 넣는다.
+
+**주의:** `.mcp.json` 에 `${VAR:-${OTHER}/경로}` 같은 **중첩 변수 확장을 쓰면 안 된다.**
+Claude Code 가 확장하지 못해 서버가 ENOENT 로 죽는다(실제로 겪었다).
+`tests/test_mcp_launcher.py` 가 이 회귀를 막는다.
