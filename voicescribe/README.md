@@ -177,6 +177,42 @@ SenseVoice 엔진의 모델은 두 가지입니다.
 
 모델은 처음 쓸 때 한 번만 자동으로 내려받아 저장됩니다. 이후에는 인터넷 없이 동작합니다.
 
+### 사내망 등에서 미리 받아야 할 때
+
+회사 방화벽에서 Hugging Face 가 막혀 있다면 다른 곳에서 미리 받아 옮기면 됩니다.
+아래는 **Hugging Face Hub 에서 직접 확인한 저장소와 실제 파일 크기**입니다.
+
+| `-m` 옵션 값 | Hugging Face 저장소 | model.bin 크기 | 라이선스 |
+| --- | --- | --- | --- |
+| `tiny` | `Systran/faster-whisper-tiny` | 75.5 MB | MIT |
+| `base` | `Systran/faster-whisper-base` | 145 MB | MIT |
+| `small` | `Systran/faster-whisper-small` | 484 MB | MIT |
+| `medium` | `Systran/faster-whisper-medium` | 1.53 GB | MIT |
+| `large-v3` | `Systran/faster-whisper-large-v3` | 3.09 GB | MIT |
+| `large-v3-turbo` | `mobiuslabsgmbh/faster-whisper-large-v3-turbo` | 1.62 GB | MIT |
+| `distil-large-v3` | `Systran/faster-distil-whisper-large-v3` | 1.51 GB | MIT (**영어 전용**) |
+
+각 저장소에는 `model.bin` 외에 `config.json`, `tokenizer.json`, `vocabulary.json`(또는
+`vocabulary.txt`), `preprocessor_config.json` 이 함께 있으니 폴더째 받으세요.
+받은 폴더를 그대로 경로로 넘기면 됩니다.
+
+```bash
+voicescribe 회의.m4a -m /path/to/faster-whisper-large-v3-turbo
+# 또는 다운로드 위치를 지정
+voicescribe 회의.m4a -m large-v3-turbo --download-root /path/to/models
+# 사내 미러가 있다면
+HF_ENDPOINT=https://내부미러 voicescribe 회의.m4a -m large-v3-turbo
+```
+
+SenseVoice 엔진은 Hugging Face 가 아니라 **GitHub 릴리스**에서 받으므로,
+HF 가 막힌 망에서도 대체로 동작합니다.
+
+```bash
+# 미리 받아 ~/.cache/voicescribe/ 에 풀어 두면 됩니다
+curl -LO https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
+curl -LO https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx
+```
+
 > ⏱️ 1시간짜리 녹음을 4코어 CPU + `large-v3-turbo` 로 처리하면 30분 이상 걸릴 수 있습니다.
 > 급하면 `small` 로 먼저 확인하세요.
 

@@ -21,15 +21,28 @@ from .base import (
 if TYPE_CHECKING:
     from ..audio import AudioBuffer
 
-#: 크기/속도/정확도 균형. 한국어는 ``large-v3`` 가 확연히 좋지만 CPU 에서는 느리다.
+#: 크기/속도/정확도 균형. 용량은 Hugging Face Hub 에서 직접 확인한 model.bin 실제 크기다.
+#: 괄호 안은 실제 저장소 이름 — 사내망에서 미리 받아야 할 때 필요하다.
 MODEL_CATALOG: dict[str, str] = {
-    "tiny": "가장 빠름 / 정확도 낮음 (약 75MB)",
-    "base": "빠름 / 무난 (약 145MB)",
-    "small": "보통 / 쓸 만함 (약 480MB)",
-    "medium": "느림 / 좋음 (약 1.5GB)",
-    "large-v3": "가장 느림 / 가장 정확 (약 3GB, 한국어 권장)",
-    "large-v3-turbo": "large-v3 보다 훨씬 빠르고 정확도는 비슷 (약 1.6GB, 추천)",
-    "distil-large-v3": "영어 전용 고속 모델 (약 1.5GB)",
+    "tiny": "가장 빠름 / 정확도 낮음 (75MB)",
+    "base": "빠름 / 무난 (145MB)",
+    "small": "보통 / 쓸 만함 (484MB)",
+    "medium": "느림 / 좋음 (1.53GB)",
+    "large-v3": "가장 느림 / 가장 정확 (3.09GB)",
+    "large-v3-turbo": "large-v3 보다 훨씬 빠르고 정확도는 비슷 (1.62GB, 추천)",
+    "distil-large-v3": "영어 전용 고속 모델 (1.51GB)",
+}
+
+#: 모델 이름 -> Hugging Face 저장소. faster-whisper 가 내부적으로 쓰는 매핑과 같다.
+#: 방화벽 안내 메시지에 쓰기 위해 들고 있는다(모두 MIT 라이선스임을 확인했다).
+MODEL_REPOS: dict[str, str] = {
+    "tiny": "Systran/faster-whisper-tiny",
+    "base": "Systran/faster-whisper-base",
+    "small": "Systran/faster-whisper-small",
+    "medium": "Systran/faster-whisper-medium",
+    "large-v3": "Systran/faster-whisper-large-v3",
+    "large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+    "distil-large-v3": "Systran/faster-distil-whisper-large-v3",
 }
 
 #: CPU 에서 안전하게 쓸 수 있는 연산 타입 우선순위.
@@ -109,6 +122,13 @@ class FasterWhisperEngine(TranscriptionEngine):
             self._cache[(options.model, device, candidate, threads)] = model
             return model
 
+        repo = MODEL_REPOS.get(options.model)
+        manual = (
+            f"\n  * 직접 받으려면: https://huggingface.co/{repo}\n"
+            "    폴더째 받아서 그 경로를 -m 옵션에 넘기면 됩니다."
+            if repo
+            else ""
+        )
         raise EngineNotAvailableError(
             f"모델 '{options.model}' 을(를) 불러오지 못했습니다: {last_error}\n"
             "확인할 것:\n"
@@ -116,6 +136,9 @@ class FasterWhisperEngine(TranscriptionEngine):
             "  2) 디스크 여유 공간\n"
             f"  3) 모델 이름 (사용 가능: {', '.join(MODEL_CATALOG)})\n"
             "  * 사내망이라면 HF_ENDPOINT 환경변수나 --download-root 옵션을 확인하세요."
+            f"{manual}\n"
+            "  * Hugging Face 가 막혀 있다면 --engine fast (SenseVoice) 를 쓰세요.\n"
+            "    이 엔진은 GitHub 릴리스에서 모델을 받습니다."
         )
 
     # ------------------------------------------------------------------ #
