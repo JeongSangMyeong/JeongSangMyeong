@@ -125,6 +125,14 @@ def build_parser() -> argparse.ArgumentParser:
     web_parser.add_argument("--host", default="127.0.0.1", help="기본 127.0.0.1(내 컴퓨터에서만 접속)")
     web_parser.add_argument("--port", type=int, default=7860)
     web_parser.add_argument("--no-browser", action="store_true", help="브라우저를 자동으로 열지 않습니다")
+    web_parser.add_argument(
+        "--lan", action="store_true",
+        help="같은 와이파이의 휴대폰에서도 접속할 수 있게 합니다(접속 주소와 QR 을 보여 줍니다)",
+    )
+    web_parser.add_argument(
+        "--https", action="store_true",
+        help="휴대폰에서 마이크 녹음을 쓰려면 필요합니다(자체 서명 인증서를 만듭니다)",
+    )
 
     langs_parser = subparsers.add_parser("langs", help="지원 언어 목록을 봅니다")
     langs_parser.add_argument("query", nargs="?", default="", help="검색어(예: ko, 한국)")
@@ -230,7 +238,14 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
 def cmd_web(args: argparse.Namespace) -> int:
     from .web.server import serve
 
-    return serve(host=args.host, port=args.port, open_browser=not args.no_browser)
+    # --lan 은 '모든 랜카드에서 받기' 의 쉬운 이름이다.
+    host = "0.0.0.0" if args.lan and args.host == "127.0.0.1" else args.host  # noqa: S104
+    return serve(
+        host=host,
+        port=args.port,
+        open_browser=not args.no_browser,
+        use_https=args.https,
+    )
 
 
 def cmd_langs(args: argparse.Namespace) -> int:

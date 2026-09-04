@@ -42,6 +42,8 @@ translate-hf = ["transformers>=4.40", "torch>=2.0", "sentencepiece>=0.2"]
 diarize = ["pyannote.audio>=3.1", "torch>=2.0"]
 # 브라우저 UI.
 web = ["fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9"]
+# 휴대폰에서 접속하기(접속용 QR 표시, 마이크 녹음을 위한 https).
+lan = ["segno>=1.6", "cryptography>=42"]
 # Claude Code 등 MCP 클라이언트 연동.
 mcp = ["mcp>=1.0"]
 # 개발용.
@@ -51,6 +53,7 @@ all = [
     "faster-whisper>=1.0", "av>=12", "soundfile>=0.12",
     "sherpa-onnx>=1.10",
     "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9",
+    "segno>=1.6", "cryptography>=42",
     "mcp>=1.0",
 ]
 

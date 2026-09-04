@@ -99,3 +99,34 @@ class TestHuggingFaceSpace:
         requirements = (HF_DIR / "requirements.txt").read_text(encoding="utf-8")
         for package in ("gradio", "sherpa-onnx", "faster-whisper", "av", "numpy"):
             assert package in requirements, f"{package} 가 requirements.txt 에 없습니다"
+
+
+class TestPhoneLaunchers:
+    """휴대폰 접속용 실행 파일 검사."""
+
+    @pytest.mark.parametrize(
+        "name",
+        ["시작-휴대폰도쓰기.bat", "시작-휴대폰도쓰기-맥.command", "시작-휴대폰도쓰기-리눅스.sh"],
+    )
+    def test_exists_and_enables_lan_and_https(self, name):
+        text = (PC_DIR / name).read_text(encoding="utf-8")
+        assert "--lan" in text, f"{name} 에 --lan 이 없습니다"
+        assert "--https" in text, f"{name} 에 --https 가 없습니다(휴대폰 마이크에 필요)"
+        assert "lan]" in text, f"{name} 이 [lan] 옵션 패키지를 설치하지 않습니다"
+
+    @pytest.mark.parametrize(
+        "name", ["시작-휴대폰도쓰기-맥.command", "시작-휴대폰도쓰기-리눅스.sh"]
+    )
+    def test_shell_syntax(self, name):
+        bash = shutil.which("bash")
+        if bash is None:
+            pytest.skip("bash 가 없습니다")
+        result = subprocess.run(
+            [bash, "-n", str(PC_DIR / name)], capture_output=True, text=True, timeout=30
+        )
+        assert result.returncode == 0, result.stderr
+
+    def test_batch_uses_crlf(self):
+        data = (PC_DIR / "시작-휴대폰도쓰기.bat").read_bytes()
+        assert b"\r\n" in data
+        assert data.replace(b"\r\n", b"").count(b"\n") == 0

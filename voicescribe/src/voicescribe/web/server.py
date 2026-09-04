@@ -319,8 +319,19 @@ def _as_bool(value: str) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on", "y")
 
 
-def serve(host: str = "127.0.0.1", port: int = 7860, open_browser: bool = True) -> int:
-    """웹 서버를 실행한다."""
+def serve(
+    host: str = "127.0.0.1",
+    port: int = 7860,
+    open_browser: bool = True,
+    use_https: bool = False,
+) -> int:
+    """웹 서버를 실행한다.
+
+    Args:
+        host: ``0.0.0.0`` 이면 같은 와이파이의 휴대폰에서도 접속할 수 있다.
+        use_https: 자체 서명 인증서로 https 를 켠다. 휴대폰에서 마이크 녹음을
+            하려면 필요하다(브라우저가 보안 연결에서만 마이크를 허용한다).
+    """
     try:
         import uvicorn
     except ImportError:
@@ -333,13 +344,36 @@ def serve(host: str = "127.0.0.1", port: int = 7860, open_browser: bool = True) 
         print(str(exc))
         return 1
 
-    url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{port}"
-    print(f"\n  VoiceScribe 웹 UI 실행 중 → {url}")
-    print("  종료하려면 Ctrl+C 를 누르세요.\n")
-    if open_browser:
-        threading.Timer(1.0, lambda: _open_browser(url)).start()
+    from .lan import access_notice, detect_lan_ip, ensure_self_signed_cert
 
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+    ssl_options: dict[str, str] = {}
+    if use_https:
+        names = ["localhost", "127.0.0.1"]
+        lan_ip = detect_lan_ip()
+        if lan_ip:
+            names.append(lan_ip)
+        try:
+            cert_file, key_file = ensure_self_signed_cert(names)
+        except RuntimeError as exc:
+            print(str(exc))
+            return 1
+        ssl_options = {"ssl_certfile": str(cert_file), "ssl_keyfile": str(key_file)}
+
+    scheme = "https" if use_https else "http"
+    local_url = f"{scheme}://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{port}"
+
+    print("\n  VoiceScribe 웹 UI 실행 중\n")
+    print(access_notice(host, port, use_https))
+    if use_https:
+        print("\n  ※ 브라우저가 '안전하지 않음' 이라고 경고합니다.")
+        print("     내 컴퓨터가 직접 만든 인증서라 그렇습니다.")
+        print("     '고급' → '계속 진행' 을 누르면 됩니다.")
+    print("\n  종료하려면 Ctrl+C 를 누르세요.\n")
+
+    if open_browser:
+        threading.Timer(1.0, lambda: _open_browser(local_url)).start()
+
+    uvicorn.run(app, host=host, port=port, log_level="warning", **ssl_options)
     return 0
 
 
