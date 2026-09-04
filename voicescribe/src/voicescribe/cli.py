@@ -295,15 +295,22 @@ def cmd_doctor(_: argparse.Namespace) -> int:
         mark = "✅" if translator.is_available() else "❌"
         print(f"  {mark} {translator.name:16s} {translator.description}")
 
-    print("\n[화자 분리]")
+    print("\n[화자 분리]  (auto 모드는 아래 순서로 자동 선택)")
     try:
         import pyannote.audio  # noqa: F401
 
-        print("  ✅ pyannote.audio (정확)")
+        print("  ✅ pyannote     가장 정확 (HF_TOKEN 과 약관 동의 필요)")
     except ImportError:
-        print("  ✅ 간이 방식 (추가 설치 불필요, numpy 기반)")
-        print("  ❌ pyannote.audio 미설치 — 더 정확한 분리를 원하면:")
-        print('       pip install "voicescribe[diarize]" + HF_TOKEN 설정')
+        print("  ❌ pyannote     미설치 — 최고 정확도를 원하면:")
+        print('                 pip install "voicescribe[diarize]" + HF_TOKEN 설정')
+    try:
+        import sherpa_onnx  # noqa: F401
+
+        print("  ✅ sherpa       권장 (토큰·PyTorch 불필요, 모델은 처음 1회 다운로드)")
+    except ImportError:
+        print("  ❌ sherpa       미설치 — 권장 방식입니다:")
+        print('                 pip install "voicescribe[fast]"')
+    print("  ✅ simple       항상 사용 가능 (numpy 만으로 동작, 정확도는 보통)")
 
     print("\n[MCP 서버]")
     try:
