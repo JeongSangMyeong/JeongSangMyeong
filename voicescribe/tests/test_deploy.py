@@ -130,3 +130,72 @@ class TestPhoneLaunchers:
         data = (PC_DIR / "시작-휴대폰도쓰기.bat").read_bytes()
         assert b"\r\n" in data
         assert data.replace(b"\r\n", b"").count(b"\n") == 0
+
+
+WEB_DIR = PROJECT_ROOT / "deploy" / "web"
+
+
+class TestBrowserOnlyWebApp:
+    """기기 안에서만 도는 정적 웹앱 검사.
+
+    이 방식의 핵심은 '녹음이 서버로 안 간다' 는 것이다.
+    업로드 코드가 실수로 들어오면 그 약속이 깨지므로 검사한다.
+    """
+
+    def test_required_files_exist(self):
+        for name in ("index.html", "worker.js", "올리는방법.md"):
+            assert (WEB_DIR / name).exists(), f"{name} 이 없습니다"
+
+    def test_never_uploads_audio(self):
+        """서버로 오디오를 보내는 코드가 없어야 한다."""
+        html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+        worker = (WEB_DIR / "worker.js").read_text(encoding="utf-8")
+        for name, text in (("index.html", html), ("worker.js", worker)):
+            assert "FormData" not in text, f"{name} 에 업로드 코드가 있습니다"
+            assert "XMLHttpRequest" not in text, f"{name} 에 업로드 코드가 있습니다"
+            # fetch 는 모델을 받을 때만 쓰이므로, 직접 호출이 없어야 한다.
+            assert "fetch(" not in text, f"{name} 에 직접 fetch 호출이 있습니다"
+
+    def test_worker_pins_an_exact_library_version(self):
+        """CDN 버전을 고정하지 않으면 어느 날 갑자기 깨질 수 있다."""
+        worker = (WEB_DIR / "worker.js").read_text(encoding="utf-8")
+        assert "@huggingface/transformers@" in worker
+        assert "@latest" not in worker
+
+    def test_worker_uses_the_browser_build(self):
+        worker = (WEB_DIR / "worker.js").read_text(encoding="utf-8")
+        assert "transformers.web.js" in worker
+
+    def test_handles_audio_longer_than_thirty_seconds(self):
+        """Whisper 는 한 번에 30초만 본다. 잘라서 처리하도록 설정해야 한다."""
+        worker = (WEB_DIR / "worker.js").read_text(encoding="utf-8")
+        assert "chunk_length_s" in worker
+
+    def test_falls_back_when_webgpu_is_missing(self):
+        """아이폰·구형 기기는 WebGPU 가 없을 수 있다."""
+        worker = (WEB_DIR / "worker.js").read_text(encoding="utf-8")
+        assert "wasm" in worker and "webgpu" in worker
+
+    def test_supports_iphone_recording_format(self):
+        """아이폰 사파리는 audio/mp4 로 녹음한다."""
+        html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+        assert "audio/mp4" in html
+
+    def test_warns_when_not_served_over_https(self):
+        html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+        assert "isSecureContext" in html
+
+    def test_korean_is_the_default_language(self):
+        html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+        assert 'value="ko" selected' in html
+
+    def test_mobile_viewport_is_declared(self):
+        html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+        assert 'name="viewport"' in html
+        assert "width=device-width" in html
+
+    def test_guide_covers_both_hosting_options(self):
+        guide = (WEB_DIR / "올리는방법.md").read_text(encoding="utf-8")
+        assert "GitHub Pages" in guide
+        assert "Cloudflare" in guide
+        assert "file://" in guide  # 파일 직접 열기가 안 된다는 안내
