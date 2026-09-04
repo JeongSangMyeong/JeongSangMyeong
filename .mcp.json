@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "voicescribe": {
+      "command": "${VOICESCRIBE_PYTHON:-${CLAUDE_PROJECT_DIR}/voicescribe/.venv/bin/python}",
+      "args": ["-m", "voicescribe.mcp_server"],
+      "env": {
+        "PYTHONPATH": "${CLAUDE_PROJECT_DIR}/voicescribe/src"
+      }
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}
