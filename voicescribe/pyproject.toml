@@ -84,5 +84,7 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]
-# FastAPI 는 File()/Form() 을 인자 기본값으로 쓰도록 설계되어 있다(B008 은 여기서 오탐).
+# FastAPI 는 File()/Form() 을, Gradio 는 Progress() 를 인자 기본값으로 쓰도록
+# 설계되어 있다(B008 은 여기서 오탐).
 "src/voicescribe/web/server.py" = ["B008"]
+"deploy/huggingface/app.py" = ["B008"]

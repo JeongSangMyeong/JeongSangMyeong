@@ -63,7 +63,21 @@ voicescribe 회의.m4a --engine fast  # 사용
 > 100개 언어가 필요하거나 단어 단위 타임스탬프가 필요하면 `faster-whisper` 를 쓰세요.
 > 엔진을 지정하지 않으면(`--engine auto`) 설치된 것 중 자동으로 고릅니다.
 
-## 설치
+## 다른 사람에게 링크로 주고 싶다면
+
+설치 없이 **주소만 열면 쓰는 웹페이지**로 만들 수 있습니다. 무료이고 휴대폰에서도 됩니다.
+
+```bash
+cd voicescribe/deploy/huggingface
+pip install huggingface_hub && hf auth login
+./deploy.sh 내허깅페이스아이디/voicescribe
+```
+
+자세한 내용은 [`deploy/huggingface/배포방법.md`](deploy/huggingface/배포방법.md) 를 보세요.
+
+> 이 방식은 녹음 파일이 서버로 올라갑니다. 내 PC 안에서만 처리하려면 아래 설치 방법을 쓰세요.
+
+## 설치 (내 컴퓨터에서 직접 쓰기)
 
 파이썬 3.10 이상이 필요합니다.
 
