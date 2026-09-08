@@ -1,13 +1,10 @@
-```ts
-const jsm = {
-  name: '정상명',
-  started: 'Spring Boot / Java',
-  building: ['qtag', 'crave-video'],
-  writesIn: ['Dart', 'TypeScript', 'Java', 'Python'],
-  email: 'ajflsp@naver.com',
-}
-```
-
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/who-dark.svg">
+  <img src="assets/who-light.svg" width="760"
+       alt="const jsm = { name: '정상명', base: 'Spring Boot', now: ['Flutter', 'Next.js', 'Blender'], mail: 'ajflsp@naver.com' }">
+</picture>
+</div>
 <div align="center">
 
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white)
