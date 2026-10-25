@@ -5,8 +5,8 @@
        alt="const jsm = { name: '정상명', base: ['Java', 'Spring Boot', 'Oracle'], now: ['Claude Code', 'Next.js', 'Python'], mail: 'ajflsp@naver.com' }">
 </picture>
 
-회사에서는 Java·Spring으로 공공·의료·금융 시스템을 만들어 왔다.<br>
-퇴근하고는 Claude Code로 서비스를 만든다. 코드는 대부분 AI가 쓰고, 무엇을 만들지 정하고 결과를 확인하는 건 내 몫이다.
+회사에서는 Java·Spring으로 공공·의료·금융 시스템을 개발해 왔습니다.<br>
+퇴근 후에는 Claude Code로 서비스를 만듭니다. 코드는 대부분 AI가 쓰고, 저는 무엇을 만들지 정하고 결과를 확인합니다.
 
 </div>
 <div align="center">
@@ -33,37 +33,37 @@
 
 ### 🏷 QR태그 · [qtag.kr](https://qtag.kr) <sub>비공개</sub>
 
-제품에 붙이는 QR 스티커 서비스. 소비자가 찍으면 제품명을 검색할 필요 없이 판매 페이지로 바로 간다. QR에는 자체 단축 주소만 찍고, 등록되지 않았거나 막힌 코드는 경고 페이지로 보낸다. 기획부터 운영까지 혼자 맡고 있다.
+제품에 붙이는 QR 스티커 서비스입니다. 소비자는 제품명을 검색하지 않고도 QR 하나로 판매 페이지에 들어갑니다. 등록되지 않았거나 막힌 코드는 경고 페이지로 보냅니다. 기획부터 운영까지 혼자 맡고 있습니다.
 
 `Next.js` `TypeScript` `Supabase` `Vercel`
 
 ### 📞 통화 비서 <sub>비공개</sub>
 
-통화 녹음을 받아써서 요약, 할 일, 말하기 코칭으로 정리해 준다. 노트북에 켜 두면 새 녹음을 알아서 처리하고 아침마다 브리핑을 보낸다. 주민번호와 카드번호는 AI에 보내기 전에 가린다. AI가 통화에 없던 약속을 지어내지 못하게, 할 일마다 근거 문장도 같이 받는다.
+통화를 업무 기록으로 남기고, 제가 어떻게 말했는지도 돌아보려고 만들었습니다. 녹음을 받아써서 요약하고, 할 일과 말하기 코칭까지 정리해 줍니다. 노트북에 켜 두면 새 녹음을 알아서 처리하고 아침마다 브리핑을 보냅니다. 주민번호와 카드번호는 AI에 넘기기 전에 가립니다.
 
 `Python` `Claude Code` `faster-whisper` `SQLite` `Notion` `Slack`
 
 ### 🎬 콘텐츠 제작 파이프라인 <sub>비공개</sub>
 
-쇼츠 영상, 카드뉴스, 블로그 글을 역할을 나눈 AI 에이전트들이 만든다. 주제 조사부터 대본, 검수, 그림과 음성, 편집, 예약 게시까지 한 흐름으로 돈다. 매주 정해진 시간에 알아서 돌고, 멈추면 폰으로 알림이 온다.
+쇼츠 한 편에도 조사, 대본, 그림, 음성, 편집이 모두 들어갑니다. 이 일을 AI 에이전트들에게 나눠 맡기면 사람 손을 어디까지 줄일 수 있는지 궁금해서 시작했습니다. 지금은 쇼츠와 카드뉴스, 블로그 글을 매주 정해진 시간에 알아서 만들고, 멈추면 휴대폰으로 알림이 옵니다.
 
 `Python` `Claude Code` `Remotion` `ffmpeg` `YouTube Data API`
 
 ### 🍽 QR 테이블오더 <sub>비공개</sub>
 
-테이블 QR을 찍으면 메뉴 고르기부터 결제까지 끝나는 주문 웹앱. 손님, 주방, 사장님 화면이 따로 있다. 같은 테이블에 앉은 사람들은 각자 폰으로 장바구니 하나를 함께 채운다. 결제 금액은 서버에서만 계산하고, 결제는 아직 모의 결제까지만 해 봤다.
+식당용 주문 웹앱입니다. 손님이 테이블에 붙은 종이 QR 한 장으로 메뉴를 고르고 계산까지 마치니, 식당은 태블릿 주문기가 필요 없습니다. 같은 테이블에 앉은 사람들은 각자 휴대폰으로 장바구니 하나를 함께 채웁니다. 결제는 아직 모의 결제까지만 확인했습니다.
 
 `Next.js` `TypeScript` `Supabase` `PortOne`
 
 ### 🎙 voice-record
 
-녹음 파일을 글로 바꿔 주는 무료 도구. 웹판은 휴대폰 브라우저 안에서 변환해서 녹음이 기기 밖으로 나가지 않는다. AI가 짧은 문장 하나로 시험해 보고 기본 엔진을 바꿨는데, 실제 회의 녹음으로 다시 돌려 보니 단어가 엉뚱하게 붙어서 원래 엔진으로 되돌렸다.
+녹음 파일을 글로 바꿔 주는 무료 도구입니다. 웹판은 휴대폰 브라우저 안에서 변환하므로, 회의 녹음처럼 남이 들으면 안 되는 음성도 기기 밖으로 내보내지 않고 받아쓸 수 있습니다. 처음에는 AI가 짧은 문장 하나로 시험해 보고 엔진을 바꿨는데, 실제 회의 녹음으로 다시 돌려 보니 단어가 엉뚱하게 붙어 원래 엔진으로 되돌렸습니다.
 
 `Python` `faster-whisper` `transformers.js` → **[저장소](https://github.com/JeongSangMyeong/voice-record)**
 
 ### 🖐 손 재활기기 게임
 
-손에 쥐는 재활기기를 기울이고 눌러서 하는 태블릿 게임. 벽돌깨기, 비행기 슈팅, 테트리스가 있다. 2024년에 개인 외주로 만들었다. ▶︎ **[시연 영상](https://youtu.be/1YC9MNHcwRc)**
+2024년에 개인 외주로 만든 태블릿 게임입니다. 손에 쥐는 재활기기를 기울이거나 눌러서 벽돌깨기, 비행기 슈팅, 테트리스를 하며 손 재활 훈련을 합니다. ▶︎ **[시연 영상](https://youtu.be/1YC9MNHcwRc)**
 
 `Flutter` `Dart` `블루투스 시리얼(SPP)` → **[저장소](https://github.com/JeongSangMyeong/hand-rehab-game)**
 
@@ -71,5 +71,5 @@
 
 ## 공부하며 만든 것
 
-- **[Spring-boot-Photogram](https://github.com/JeongSangMyeong/Spring-boot-Photogram)** · Spring Boot 3로 만든 인스타그램 클론. 강의 코드의 버그를 고치고 기능을 붙인 부분은 [README](https://github.com/JeongSangMyeong/Spring-boot-Photogram#직접-구현한-부분)에 커밋까지 적어 뒀다.
-- **[naver-search](https://github.com/JeongSangMyeong/naver-search)** · 네이버 검색 API 6종(블로그·뉴스·책·카페·지식인·지역)을 한 화면에서 검색. Next.js 14.
+- **[Spring-boot-Photogram](https://github.com/JeongSangMyeong/Spring-boot-Photogram)** · Spring Boot 3로 만든 인스타그램 클론입니다. 강의 코드의 버그를 고치고 기능을 더한 부분은 [README](https://github.com/JeongSangMyeong/Spring-boot-Photogram#직접-구현한-부분)에 커밋까지 적어 두었습니다.
+- **[naver-search](https://github.com/JeongSangMyeong/naver-search)** · 네이버 검색 API 6종(블로그·뉴스·책·카페·지식인·지역)을 한 화면에서 검색할 수 있습니다. Next.js 14로 만들었습니다.
