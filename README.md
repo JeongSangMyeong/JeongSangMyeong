@@ -5,9 +5,6 @@
        alt="const jsm = { name: '정상명', base: ['Java', 'Spring Boot', 'Oracle'], now: ['Claude Code', 'Next.js', 'Python'], mail: 'ajflsp@naver.com' }">
 </picture>
 
-회사에서는 Java·Spring으로 공공·의료·금융 시스템을 개발해 왔습니다.<br>
-퇴근 후에는 Claude Code로 서비스를 만듭니다. 코드는 대부분 AI가 쓰고, 저는 무엇을 만들지 정하고 결과를 확인합니다.
-
 </div>
 <div align="center">
 
@@ -30,6 +27,8 @@
 ---
 
 ## 만든 것
+
+모두 퇴근 후에 Claude와 함께 만든 것들입니다. 요즘은 Claude Code를 쓰는데, 코드는 대부분 AI가 짜고 저는 무엇을 만들지 정하고 결과를 확인합니다.
 
 ### 🏷 QR태그 · [qtag.kr](https://qtag.kr) <sub>비공개</sub>
 
@@ -63,7 +62,7 @@
 
 ### 🖐 손 재활기기 게임
 
-2024년에 개인 외주로 만든 태블릿 게임입니다. 손에 쥐는 재활기기를 기울이거나 눌러서 벽돌깨기, 비행기 슈팅, 테트리스를 하며 손 재활 훈련을 합니다. ▶︎ **[시연 영상](https://youtu.be/1YC9MNHcwRc)**
+2024년에 개인 외주로 만든 태블릿 게임입니다. 손에 쥐는 재활기기를 기울이거나 눌러서 벽돌깨기, 비행기 슈팅, 테트리스를 하며 손 재활 훈련을 합니다. Flutter와 Dart를 모르던 때라 Claude에게 하나씩 물어 가며 개발했는데, 생각보다 금방 완성돼서 신기하고 재미있었습니다. ▶︎ **[시연 영상](https://youtu.be/1YC9MNHcwRc)**
 
 `Flutter` `Dart` `블루투스 시리얼(SPP)` → **[저장소](https://github.com/JeongSangMyeong/hand-rehab-game)**
 
